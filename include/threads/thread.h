@@ -94,6 +94,7 @@ struct thread {
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+	int64_t wait_time;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -140,6 +141,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+void thread_wait(int64_t ticks);
+void thread_ready(struct thread *t);
 
 void do_iret (struct intr_frame *tf);
 
