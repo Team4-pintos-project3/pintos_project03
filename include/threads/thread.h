@@ -142,7 +142,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 void thread_wait(int64_t ticks);
-void thread_ready(struct thread *t);
+void thread_ready();
 
 void do_iret (struct intr_frame *tf);
 
