@@ -600,4 +600,5 @@ void thread_ready(struct thread *t){
 	list_remove(e);
 	list_push_front (&ready_list, e);
 	t->status = THREAD_READY;
+	t->wait_time -= 1;
 }
