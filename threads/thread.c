@@ -607,7 +607,7 @@ void thread_ready(){
 				cur->status = THREAD_READY;
 				cur->wait_time -= 1;
 			}
-		}	
-	
+			ptr = ptr->next;
+		}
 	}
 }
