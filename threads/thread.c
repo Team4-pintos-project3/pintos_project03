@@ -592,8 +592,12 @@ allocate_tid (void) {
 
 void thread_wait(int64_t ticks){
 	// todo wait 리스트에 추가
-
+	struct thread *cur = thread_current();
+	cur->wait_time = ticks;
+	cur->status = THREAD_BLOCKED;
+	list_push_back(&wait_list, &cur->elem);
 }
+
 void thread_ready(struct thread *t){
 	// todo 래디리스트에 추가
 }
