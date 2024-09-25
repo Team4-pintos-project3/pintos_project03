@@ -27,6 +27,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list wait_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -587,4 +588,12 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+void thread_wait(int64_t ticks){
+	// todo wait 리스트에 추가
+
+}
+void thread_ready(struct thread *t){
+	// todo 래디리스트에 추가
 }
