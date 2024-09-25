@@ -595,5 +595,9 @@ void thread_wait(int64_t ticks){
 
 }
 void thread_ready(struct thread *t){
-	// todo 래디리스트에 추가
+	// 내 쓰레드를 받아서 wait_list에서 지우고, ready_list에 추가 및 상태(ready)변경
+	struct list_elem *e = &t->elem;
+	list_remove(e);
+	list_push_front (&ready_list, e);
+	t->status = THREAD_READY;
 }
