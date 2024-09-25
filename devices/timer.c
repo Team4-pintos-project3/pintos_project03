@@ -37,7 +37,6 @@ timer_init (void) {
 	/* 8254 input frequency divided by TIMER_FREQ, rounded to
 	   nearest. */
 	uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
-
 	outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
 	outb (0x40, count & 0xff);
 	outb (0x40, count >> 8);
@@ -89,12 +88,10 @@ timer_elapsed (int64_t then) {
 
 /* Suspends execution for approximately TICKS timer ticks. */
 void
-timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
+timer_sleep (int64_t ticks) {	
+	ASSERT (intr_get_level () == INTR_ON);	
+	thread_wait(ticks);	
 
-	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -126,6 +123,7 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+	thread_ready ();
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
