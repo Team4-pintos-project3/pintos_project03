@@ -109,6 +109,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&wait_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -116,6 +117,7 @@ thread_init (void) {
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
+	initial_thread->wait_time = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -410,6 +412,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+	t->wait_time = 0;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -593,27 +596,28 @@ allocate_tid (void) {
 void thread_wait(int64_t ticks){
 	// todo wait 리스트에 추가
 	struct thread *cur = thread_current();
-	ASSERT (cur->status != THREAD_BLOCKED);
+	ASSERT (!intr_context ());
 
-	cur->wait_time = ticks;
-	cur->status = THREAD_BLOCKED;
-	enum intr_level old_level = intr_disable();
-	list_push_back(&wait_list, &cur->elem);
-	intr_set_level(old_level);
+	if(cur != idle_thread){
+		cur->wait_time = ticks;
+		enum intr_level old_level = intr_disable();
+		list_push_back(&wait_list, &cur->elem);
+		cur->status = THREAD_BLOCKED;
+		schedule();
+		intr_set_level(old_level);
+	}
 }
 
-void thread_ready(){
+void thread_ready(int64_t ticks){
 	// 내 쓰레드를 받아서 wait_list에서 지우고, ready_list에 추가 및 상태(ready)변경
 	if(!list_empty(&wait_list)){
 		struct list_elem *ptr = list_front(&wait_list);
 		while(ptr != NULL){
 			struct thread *cur = list_entry(ptr ,struct thread, elem);
-			cur->wait_time -= 1;
-			if(cur->wait_time == 0){
+			if(cur->wait_time == ticks){
 				list_remove(&cur->elem);
-				list_push_front (&ready_list, &cur->elem);
 				cur->status = THREAD_READY;
-				cur->wait_time -= 1;
+				list_push_back (&ready_list, &cur->elem);
 			}
 			ptr = ptr->next;
 		}
