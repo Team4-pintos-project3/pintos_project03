@@ -109,7 +109,8 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
-	list_init (&wait_list);
+	list_init (&wait_list); /* init wait_list */
+	
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -614,12 +615,12 @@ void thread_ready(int64_t ticks){
 		struct list_elem *ptr = list_front(&wait_list);
 		while(ptr != NULL){
 			struct thread *cur = list_entry(ptr ,struct thread, elem);
+			ptr = ptr->next;
 			if(cur->wait_time == ticks){
 				list_remove(&cur->elem);
 				cur->status = THREAD_READY;
 				list_push_back (&ready_list, &cur->elem);
 			}
-			ptr = ptr->next;
 		}
 	}
 }

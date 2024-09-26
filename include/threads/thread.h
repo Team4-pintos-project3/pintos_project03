@@ -94,7 +94,7 @@ struct thread {
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
-	int64_t wait_time;
+	int64_t wait_time; /* record wait_time */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */

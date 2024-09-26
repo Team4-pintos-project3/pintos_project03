@@ -40,7 +40,6 @@ timer_init (void) {
 	outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
 	outb (0x40, count & 0xff);
 	outb (0x40, count >> 8);
-
 	intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
 
@@ -89,8 +88,11 @@ timer_elapsed (int64_t then) {
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) {
-	ASSERT (intr_get_level () == INTR_ON);	
-	thread_wait(ticks + timer_ticks ());	
+	ASSERT (intr_get_level () == INTR_ON);
+	if (ticks > 0) {
+		thread_wait(ticks + timer_ticks ());	
+	}
+	
 }
 
 /* Suspends execution for approximately MS milliseconds. */
