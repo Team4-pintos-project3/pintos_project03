@@ -1,4 +1,4 @@
-/* This file is derived from source code for the Nachos
+﻿/* This file is derived from source code for the Nachos
    instructional operating system.  The Nachos copyright notice
    is reproduced in full below. */
 
@@ -188,8 +188,17 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+	struct thread *cur = thread_current ();
+	if (lock->holder){
+		if(lock->holder->priority < cur->priority){
+			lock->donation += cur->priority - lock->holder->priority;
+			lock->holder->priority = cur->priority;
+			change_ready_list(&lock->holder->elem);
+		}
+	}
+	
 	sema_down (&lock->semaphore);
-	lock->holder = thread_current ();
+	lock->holder = cur;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -222,6 +231,8 @@ lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
+	lock->holder->priority -= lock->donation;
+	change_ready_list(&lock->holder->elem);
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
 }

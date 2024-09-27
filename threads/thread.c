@@ -332,6 +332,13 @@ thread_set_priority (int new_priority) {
 	}	
 }
 
+void change_ready_list(struct list_elem *elem){
+	if (elem != NULL && elem->next != NULL && elem->prev != NULL){
+		list_remove(elem);
+		list_insert_ordered(&ready_list, elem, cmp_prior, NULL);
+	}
+}
+
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) {
