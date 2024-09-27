@@ -241,12 +241,18 @@ thread_unblock (struct thread *t) {
 	enum intr_level old_level;
 
 	ASSERT (is_thread (t));
+	
+	old_level = intr_disable (); /*인터럽트 비활성화*/
 
-	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_push_priority (&ready_list, &t->elem); /*list_push_back -> list_push_priority*/
 	t->status = THREAD_READY;
-	intr_set_level (old_level);
+
+	if(thread_current()->priority < t->priority){
+		schedule();
+	}
+
+	intr_set_level (old_level); /*인터럽트 활성화*/
 }
 
 /* Returns the name of the running thread. */
@@ -307,7 +313,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_push_priority (&ready_list, &curr->elem); /*list_push_back -> list_push_priority*/
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
