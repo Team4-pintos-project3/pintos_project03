@@ -4,6 +4,10 @@
 #include <list.h>
 #include <stdbool.h>
 
+#define sema2lock(LOCK_ELEM, STRUCT, MEMBER)           \
+	((STRUCT *) ((uint8_t *) &(LOCK_ELEM)->MEMBER     \
+		- offsetof (STRUCT, semaphore.MEMBER)))
+
 /* A counting semaphore. */
 struct semaphore {
 	unsigned value;             /* Current value. */

@@ -113,6 +113,13 @@ sema_up (struct semaphore *sema) {
 		thread_unblock (list_entry (list_pop_front (&sema->waiters),
 					struct thread, elem));
 	sema->value++;
+	struct lock *lock = sema2lock(sema, struct lock, waiters);
+	if(lock->holder == thread_current()){
+		if(lock->donation)
+			lock->holder->priority -= lock->donation;
+		lock->holder = NULL;
+	}
+	thread_yield();
 	intr_set_level (old_level);
 }
 
@@ -236,14 +243,7 @@ lock_release (struct lock *lock) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	enum intr_level old_level = intr_disable();
-	// change_ready_list(&lock->holder->elem);
 	sema_up (&lock->semaphore);
-	if(lock->donation){
-		lock->holder->priority -= lock->donation;
-		lock->holder = NULL;
-		thread_yield();
-	}
-	lock->holder = NULL;
 	intr_set_level(old_level);
 }
 
