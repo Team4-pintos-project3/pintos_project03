@@ -63,6 +63,8 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+static bool
+cmp_prior(const struct list_elem *a, const struct list_elem *b);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -623,4 +625,12 @@ void thread_ready(int64_t ticks){
 			}
 		}
 	}
+}
+
+
+bool
+cmp_prior(const struct list_elem *a, const struct list_elem *b) {
+    struct thread *t_a = list_entry(a, struct thread, elem);
+    struct thread *t_b = list_entry(b, struct thread, elem);
+    return t_a->priority > t_b->priority;
 }
