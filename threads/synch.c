@@ -171,6 +171,7 @@ lock_init (struct lock *lock) {
 	ASSERT (lock != NULL);
 
 	lock->holder = NULL;
+	lock->donation = 0;
 	sema_init (&lock->semaphore, 1);
 }
 
@@ -191,14 +192,17 @@ lock_acquire (struct lock *lock) {
 	struct thread *cur = thread_current ();
 	if (lock->holder){
 		if(lock->holder->priority < cur->priority){
+			enum intr_level old_level = intr_disable();
 			lock->donation += cur->priority - lock->holder->priority;
 			lock->holder->priority = cur->priority;
 			change_ready_list(&lock->holder->elem);
+			intr_set_level(old_level);
 		}
 	}
 	
 	sema_down (&lock->semaphore);
 	lock->holder = cur;
+	lock->donation = 0;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -231,10 +235,16 @@ lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
-	lock->holder->priority -= lock->donation;
-	change_ready_list(&lock->holder->elem);
-	lock->holder = NULL;
+	enum intr_level old_level = intr_disable();
+	// change_ready_list(&lock->holder->elem);
 	sema_up (&lock->semaphore);
+	if(lock->donation){
+		lock->holder->priority -= lock->donation;
+		lock->holder = NULL;
+		thread_yield();
+	}
+	lock->holder = NULL;
+	intr_set_level(old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
