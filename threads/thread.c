@@ -63,6 +63,8 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+static bool
+cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux );
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -109,7 +111,8 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
-	list_init (&wait_list);
+	list_init (&wait_list); /* init wait_list */
+	
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -243,8 +246,13 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, cmp_prior, NULL);
 	t->status = THREAD_READY;
+
+	if(thread_current()->priority < t->priority){
+		schedule();
+	}
+
 	intr_set_level (old_level);
 }
 
@@ -306,7 +314,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -614,12 +622,20 @@ void thread_ready(int64_t ticks){
 		struct list_elem *ptr = list_front(&wait_list);
 		while(ptr != NULL){
 			struct thread *cur = list_entry(ptr ,struct thread, elem);
+			ptr = ptr->next;
 			if(cur->wait_time == ticks){
 				list_remove(&cur->elem);
 				cur->status = THREAD_READY;
 				list_push_back (&ready_list, &cur->elem);
 			}
-			ptr = ptr->next;
 		}
 	}
+}
+
+
+static bool
+cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+    struct thread *t_a = list_entry(a, struct thread, elem);
+    struct thread *t_b = list_entry(b, struct thread, elem);
+    return t_a->priority > t_b->priority;
 }
