@@ -63,8 +63,6 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
-static bool
-cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux );
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -213,6 +211,9 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+	if(thread_current()->priority < t->priority)
+		thread_yield();
+
 	return tid;
 }
 
@@ -248,10 +249,6 @@ thread_unblock (struct thread *t) {
 	ASSERT (t->status == THREAD_BLOCKED);
 	list_insert_ordered(&ready_list, &t->elem, cmp_prior, NULL);
 	t->status = THREAD_READY;
-
-	if(thread_current()->priority < t->priority){
-		schedule();
-	}
 
 	intr_set_level (old_level);
 }
@@ -619,7 +616,7 @@ void thread_wait(int64_t ticks){
 	if(cur != idle_thread){
 		cur->wait_time = ticks;
 		enum intr_level old_level = intr_disable();
-		list_push_back(&wait_list, &cur->elem);
+		list_insert_ordered(&wait_list, &cur->elem, cmp_prior, NULL);
 		cur->status = THREAD_BLOCKED;
 		schedule();
 		intr_set_level(old_level);
@@ -636,14 +633,14 @@ void thread_ready(int64_t ticks){
 			if(cur->wait_time == ticks){
 				list_remove(&cur->elem);
 				cur->status = THREAD_READY;
-				list_push_back (&ready_list, &cur->elem);
+				list_insert_ordered (&ready_list, &cur->elem, cmp_prior, NULL);
 			}
 		}
 	}
 }
 
 
-static bool
+bool
 cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
     struct thread *t_a = list_entry(a, struct thread, elem);
     struct thread *t_b = list_entry(b, struct thread, elem);

@@ -145,5 +145,6 @@ void thread_wait(int64_t ticks);
 void thread_ready(int64_t ticks);
 
 void do_iret (struct intr_frame *tf);
-
+bool
+cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux );
 #endif /* threads/thread.h */
