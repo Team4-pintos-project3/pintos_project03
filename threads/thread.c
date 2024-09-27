@@ -322,7 +322,17 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	enum intr_level old_level;
+	struct thread *cur = thread_current (); 
+	cur->priority = new_priority;
+	if (new_priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority) {
+		old_level = intr_disable ();
+		
+		cur->status = THREAD_READY;
+		list_insert_ordered(&ready_list, &cur->elem, cmp_prior,NULL);
+		schedule();
+		intr_set_level (old_level);
+	}	
 }
 
 /* Returns the current thread's priority. */
