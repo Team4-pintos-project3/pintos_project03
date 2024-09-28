@@ -96,6 +96,11 @@ struct thread {
 	struct list_elem elem;              /* List element. */
 	int64_t wait_time; /* record wait_time */
 
+	struct list_elem prior_elem;
+	struct list prior_his;
+	struct lock *lock;
+	int org_prior;
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */

@@ -322,6 +322,10 @@ thread_set_priority (int new_priority) {
 	enum intr_level old_level;
 	struct thread *cur = thread_current (); 
 	cur->priority = new_priority;
+	cur->org_prior = new_priority;
+
+	chang_prior_his();
+
 	if (new_priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority) {
 		old_level = intr_disable ();
 		
@@ -433,8 +437,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
+	t->org_prior = priority;
 	t->magic = THREAD_MAGIC;
 	t->wait_time = 0;
+	list_init(&t->prior_his);
+	t->lock = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -616,7 +623,6 @@ allocate_tid (void) {
 }
 
 void thread_wait(int64_t ticks){
-	// todo wait 리스트에 추가
 	struct thread *cur = thread_current();
 	ASSERT (!intr_context ());
 
@@ -631,7 +637,6 @@ void thread_wait(int64_t ticks){
 }
 
 void thread_ready(int64_t ticks){
-	// 내 쓰레드를 받아서 wait_list에서 지우고, ready_list에 추가 및 상태(ready)변경
 	if(!list_empty(&wait_list)){
 		struct list_elem *ptr = list_front(&wait_list);
 		while(ptr != NULL){
