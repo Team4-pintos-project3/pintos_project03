@@ -103,6 +103,7 @@ struct list {
 #define list_entry(LIST_ELEM, STRUCT, MEMBER)           \
 	((STRUCT *) ((uint8_t *) &(LIST_ELEM)->next     \
 		- offsetof (STRUCT, MEMBER.next)))
+#define max(a, b) (((a) > (b)) ? (a) : (b))
 
 void list_init (struct list *);
 
@@ -124,7 +125,6 @@ void list_splice (struct list_elem *before,
 		struct list_elem *first, struct list_elem *last);
 void list_push_front (struct list *, struct list_elem *);
 void list_push_back (struct list *, struct list_elem *);
-void list_push_priority(struct list *, struct list_elem *);
 
 /* List removal. */
 struct list_elem *list_remove (struct list_elem *);

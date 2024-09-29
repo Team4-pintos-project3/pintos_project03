@@ -96,6 +96,11 @@ struct thread {
 	struct list_elem elem;              /* List element. */
 	int64_t wait_time; /* record wait_time */
 
+	struct list_elem prior_elem;
+	struct list prior_his;
+	struct lock *lock;
+	int org_prior;
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
@@ -136,6 +141,7 @@ void thread_yield (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void change_ready_list(struct list_elem *elem);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
@@ -145,5 +151,6 @@ void thread_wait(int64_t ticks);
 void thread_ready(int64_t ticks);
 
 void do_iret (struct intr_frame *tf);
-
+bool
+cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux );
 #endif /* threads/thread.h */

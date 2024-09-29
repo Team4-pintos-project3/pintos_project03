@@ -4,6 +4,10 @@
 #include <list.h>
 #include <stdbool.h>
 
+#define sema2lock(LOCK_ELEM, STRUCT, MEMBER)           \
+	((STRUCT *) ((uint8_t *) &(LOCK_ELEM)->MEMBER     \
+		- offsetof (STRUCT, semaphore.MEMBER)))
+
 /* A counting semaphore. */
 struct semaphore {
 	unsigned value;             /* Current value. */
@@ -20,6 +24,7 @@ void sema_self_test (void);
 struct lock {
 	struct thread *holder;      /* Thread holding lock (for debugging). */
 	struct semaphore semaphore; /* Binary semaphore controlling access. */
+	uint64_t donation;
 };
 
 void lock_init (struct lock *);
@@ -37,6 +42,14 @@ void cond_init (struct condition *);
 void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
+
+void donate(struct lock *, struct thread *);
+void donate_remove(struct thread *, struct lock*);
+
+bool
+cmp_prior_elem(const struct list_elem *a, const struct list_elem *b, void *aux);
+
+void chang_prior_his();
 
 /* Optimization barrier.
  *

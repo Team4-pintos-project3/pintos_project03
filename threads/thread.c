@@ -211,6 +211,9 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+	if(thread_current()->priority < t->priority)
+		thread_yield();
+
 	return tid;
 }
 
@@ -244,8 +247,9 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, cmp_prior, NULL);
 	t->status = THREAD_READY;
+
 	intr_set_level (old_level);
 }
 
@@ -307,7 +311,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -315,7 +319,28 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	enum intr_level old_level;
+	struct thread *cur = thread_current (); 
+	cur->priority = new_priority;
+	cur->org_prior = new_priority;
+
+	chang_prior_his();
+
+	if (new_priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority) {
+		old_level = intr_disable ();
+		
+		cur->status = THREAD_READY;
+		list_insert_ordered(&ready_list, &cur->elem, cmp_prior,NULL);
+		schedule();
+		intr_set_level (old_level);
+	}	
+}
+
+void change_ready_list(struct list_elem *elem){
+	if (elem != NULL && elem->next != NULL && elem->prev != NULL){
+		list_remove(elem);
+		list_insert_ordered(&ready_list, elem, cmp_prior, NULL);
+	}
 }
 
 /* Returns the current thread's priority. */
@@ -412,8 +437,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
+	t->org_prior = priority;
 	t->magic = THREAD_MAGIC;
 	t->wait_time = 0;
+	list_init(&t->prior_his);
+	t->lock = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -595,14 +623,13 @@ allocate_tid (void) {
 }
 
 void thread_wait(int64_t ticks){
-	// todo wait 리스트에 추가
 	struct thread *cur = thread_current();
 	ASSERT (!intr_context ());
 
 	if(cur != idle_thread){
 		cur->wait_time = ticks;
 		enum intr_level old_level = intr_disable();
-		list_push_back(&wait_list, &cur->elem);
+		list_insert_ordered(&wait_list, &cur->elem, cmp_prior, NULL);
 		cur->status = THREAD_BLOCKED;
 		schedule();
 		intr_set_level(old_level);
@@ -610,7 +637,6 @@ void thread_wait(int64_t ticks){
 }
 
 void thread_ready(int64_t ticks){
-	// 내 쓰레드를 받아서 wait_list에서 지우고, ready_list에 추가 및 상태(ready)변경
 	if(!list_empty(&wait_list)){
 		struct list_elem *ptr = list_front(&wait_list);
 		while(ptr != NULL){
@@ -619,8 +645,16 @@ void thread_ready(int64_t ticks){
 			if(cur->wait_time == ticks){
 				list_remove(&cur->elem);
 				cur->status = THREAD_READY;
-				list_push_back (&ready_list, &cur->elem);
+				list_insert_ordered (&ready_list, &cur->elem, cmp_prior, NULL);
 			}
 		}
 	}
+}
+
+
+bool
+cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+    struct thread *t_a = list_entry(a, struct thread, elem);
+    struct thread *t_b = list_entry(b, struct thread, elem);
+    return t_a->priority > t_b->priority;
 }
