@@ -310,8 +310,7 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
+	list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -326,21 +325,8 @@ thread_set_priority (int new_priority) {
 
 	chang_prior_his();
 
-	if (new_priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority) {
-		old_level = intr_disable ();
-		
-		cur->status = THREAD_READY;
-		list_insert_ordered(&ready_list, &cur->elem, cmp_prior,NULL);
-		schedule();
-		intr_set_level (old_level);
-	}	
-}
-
-void change_ready_list(struct list_elem *elem){
-	if (elem != NULL && elem->next != NULL && elem->prev != NULL){
-		list_remove(elem);
-		list_insert_ordered(&ready_list, elem, cmp_prior, NULL);
-	}
+	if (new_priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority) 
+		thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -626,14 +612,11 @@ void thread_wait(int64_t ticks){
 	struct thread *cur = thread_current();
 	ASSERT (!intr_context ());
 
-	if(cur != idle_thread){
-		cur->wait_time = ticks;
-		enum intr_level old_level = intr_disable();
-		list_insert_ordered(&wait_list, &cur->elem, cmp_prior, NULL);
-		cur->status = THREAD_BLOCKED;
-		schedule();
-		intr_set_level(old_level);
-	}
+	cur->wait_time = ticks;
+	enum intr_level old_level = intr_disable();
+	list_insert_ordered(&wait_list, &cur->elem, cmp_prior, NULL);
+	thread_block();
+	intr_set_level(old_level);
 }
 
 void thread_ready(int64_t ticks){

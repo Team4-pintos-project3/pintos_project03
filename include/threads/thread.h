@@ -141,7 +141,6 @@ void thread_yield (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
-void change_ready_list(struct list_elem *elem);
 
 int thread_get_nice (void);
 void thread_set_nice (int);

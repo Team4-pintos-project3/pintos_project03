@@ -120,15 +120,14 @@ sema_up (struct semaphore *sema) {
 	struct lock *lock = sema2lock(sema, struct lock, waiters);
 	struct thread *cur = thread_current();
 	if(lock->holder == cur){
+		lock->holder = NULL;
 		if (first != NULL){
 			donate_remove(cur, lock);
-			lock->holder = NULL;
 			thread_yield();
 		}
-		lock->holder = NULL;
-	}else{
+	}else
 		thread_yield();
-	}
+	
 	intr_set_level (old_level);
 }
 
@@ -187,7 +186,6 @@ lock_init (struct lock *lock) {
 	ASSERT (lock != NULL);
 
 	lock->holder = NULL;
-	lock->donation = 0;
 	sema_init (&lock->semaphore, 1);
 }
 
@@ -394,18 +392,15 @@ void donate_remove(struct thread *holder, struct lock *lock){
 
 void chang_prior_his(){
 	struct thread *holder = thread_current();
-	do{	
+	while(holder != NULL){	
 		struct list *his = &holder->prior_his;
 		if(!list_empty(his)){
 			list_sort(his, cmp_prior_elem, NULL);
-			struct thread *next = list_entry(list_front(his), struct thread, prior_elem);
-			if(holder->org_prior < next->priority)
-				holder->priority = next->priority;
-			else
-				holder->priority = holder->org_prior;
+			struct thread *first = list_entry(list_front(his), struct thread, prior_elem);
+			holder->priority = max(holder->org_prior, first->priority);
 		}
 		holder = holder->lock == NULL ? NULL : holder->lock->holder;
-	}while(holder != NULL);
+	}
 }
 
 bool
