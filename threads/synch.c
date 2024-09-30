@@ -195,7 +195,7 @@ lock_acquire (struct lock *lock) {
 		enum intr_level old_level = intr_disable();
 		list_insert_ordered(&lock->holder->prior_his, &cur->prior_elem, cmp_prior_elem , NULL);
 		cur->lock = lock;
-		donate(lock, cur);
+		donate(lock);
 		intr_set_level(old_level);
 	}
 	
@@ -352,14 +352,14 @@ int get_sema_prior(const struct semaphore_elem *sema){
 	return list_entry(list_front(&sema->semaphore.waiters), struct thread, elem)->priority;
 }
 
-void donate(struct lock *lock, struct thread *t){
+void donate(struct lock *lock){
 	struct thread *h = lock->holder;
 	list_sort(&h->prior_his, cmp_prior_elem, NULL);
 	struct thread *first = list_entry(list_front(&h->prior_his), struct thread, prior_elem);
 	if(h->priority < first->priority){
 		h->priority = first->priority;
 		if(h->lock != NULL)
-			donate(h->lock, h);
+			donate(h->lock);
 	}
 }
 
@@ -374,20 +374,6 @@ void donate_remove(struct thread *holder, struct lock *lock){
 	else{
 		struct thread *first = list_entry(list_front(&holder->prior_his), struct thread, prior_elem);
 		holder->priority = max(first->priority, holder->org_prior);//);holder->org_prior holder->priority
-	}
-	// chang_prior_his();
-}
-
-void chang_prior_his(){
-	struct thread *holder = thread_current();
-	while(holder != NULL){	
-		struct list *his = &holder->prior_his;
-		if(!list_empty(his)){
-			list_sort(his, cmp_prior_elem, NULL);
-			struct thread *first = list_entry(list_front(his), struct thread, prior_elem);
-			holder->priority = max(holder->org_prior, first->priority);
-		}
-		holder = holder->lock == NULL ? NULL : holder->lock->holder;
 	}
 }
 

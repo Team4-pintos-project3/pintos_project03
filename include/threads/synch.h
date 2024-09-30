@@ -42,13 +42,11 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-void donate(struct lock *, struct thread *);
+void donate(struct lock *);
 void donate_remove(struct thread *, struct lock*);
 
 bool
 cmp_prior_elem(const struct list_elem *a, const struct list_elem *b, void *aux);
-
-void chang_prior_his();
 
 /* Optimization barrier.
  *
