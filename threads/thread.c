@@ -323,8 +323,10 @@ thread_set_priority (int new_priority) {
 	cur->priority = new_priority;
 	cur->org_prior = new_priority;
 
-	chang_prior_his();
-
+	// chang_prior_his();
+	if (!list_empty(&cur->prior_his)){
+		cur->priority = max(new_priority, list_entry(list_begin(&cur->prior_his), struct thread, prior_elem)->priority);
+	}
 	if (new_priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority) 
 		thread_yield();
 }
