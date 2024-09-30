@@ -395,5 +395,5 @@ bool
 cmp_prior_elem(const struct list_elem *a, const struct list_elem *b, void *aux){
 	struct thread *t_a = list_entry(a, struct thread, prior_elem);
 	struct thread *t_b = list_entry(b, struct thread, prior_elem);
-	return t_a->priority >= t_b->priority;
+	return t_a->priority > t_b->priority;
 }
