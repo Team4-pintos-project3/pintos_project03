@@ -311,13 +311,10 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	if(!list_empty(&ready_list)){
-		struct thread *first = list_entry(list_front(&ready_list), struct thread, elem);
-		if (first->priority > curr->priority){
-			list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
-			do_schedule (THREAD_READY);
-		}
-	}
+	if(curr != idle_thread)
+		list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
+	
+	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
 
