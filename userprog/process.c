@@ -158,12 +158,39 @@ error:
 	thread_exit ();
 }
 
+void push_args(char **argv, int argc, char **rspp){
+	for (int i = argc-1; i > -1; i--){
+		*rspp -= strlen(argv[i]);
+		memcpy(*rspp, argv[i], strlen(argv[i]));
+		argv[i] = *rspp;
+	}
+	
+	int padding_byte = (**(int **)rspp) % 8;
+	for (int i = 0; i < padding_byte; i++){
+		*rspp -= 1;
+		**rspp = 0;
+	}
+	
+	// *rspp -= sizeof(char *);
+	// **rspp = NULL;
+
+	for (int i = argc; i > -1; i--){
+		*rspp -= sizeof(char *);
+		*rspp = argv[i];
+	}
+
+	*rspp -= sizeof(void *);
+	**(char ***)rspp = NULL;
+}
+
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
 int
 process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
+	char *argv[64], *token, *save_ptr;
+	int argc = 0;
 
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
@@ -176,8 +203,20 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
+	token = strtok_r(file_name, " ", &save_ptr);
+	while(token != NULL){
+		argv[argc++] = token;
+		token = strtok_r(NULL, " ", &save_ptr);
+	}
+	argv[argc] = token;
+
 	/* And then load the binary */
 	success = load (file_name, &_if);
+	push_args(argv, argc, &_if.rsp);
+	_if.R.rdi = argc;
+	_if.R.rsi = _if.rsp + sizeof(void *);
+
+	hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, true);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -204,6 +243,11 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	while (1>0)
+	{
+		asm volatile ("":::"memory");
+	}
+	
 	return -1;
 }
 
