@@ -117,6 +117,7 @@ thread_init (void) {
 	initial_thread = running_thread ();
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
+	// initial_thread->pml4 = pml4_create();
 	initial_thread->tid = allocate_tid ();
 	initial_thread->wait_time = 0;
 }
@@ -310,8 +311,13 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
-	do_schedule (THREAD_READY);
+	if(!list_empty(&ready_list)){
+		struct thread *first = list_entry(list_front(&ready_list), struct thread, elem);
+		if (first->priority > curr->priority){
+			list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
+			do_schedule (THREAD_READY);
+		}
+	}
 	intr_set_level (old_level);
 }
 
