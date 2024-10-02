@@ -310,6 +310,9 @@ thread_yield (void) {
 
 	ASSERT (!intr_context ());
 
+	if (list_empty(&ready_list))
+		return;
+
 	old_level = intr_disable ();
 	if(curr != idle_thread)
 		list_insert_ordered (&ready_list, &curr->elem, cmp_prior, NULL);
