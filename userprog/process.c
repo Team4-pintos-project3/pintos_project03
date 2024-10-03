@@ -160,10 +160,8 @@ error:
 
 void push_args(char **argv, int argc, char **rspp){
 	for (int i = argc-1; i > -1; i--){
-		*rspp -= 1;
-		**rspp = '\0';
-		*rspp -= strlen(argv[i]);
-		memcpy(*rspp, argv[i], strlen(argv[i]));
+		*rspp -= strlen(argv[i]) + 1;
+		memcpy(*rspp, argv[i], strlen(argv[i]) + 1);
 		argv[i] = *rspp;
 	}
 	
