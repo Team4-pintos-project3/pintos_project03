@@ -209,6 +209,12 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	list_push_back(&thread_current()->childs, &t->child_elem);
+	t->fdt = palloc_get_multiple(PAL_ZERO | PAL_USER, 2); // ?? what is palloc flag
+	if(t->fdt == NULL)
+		return TID_ERROR;
+	t->nfd = 2;
+
 	/* Add to run queue. */
 	thread_unblock (t);
 
@@ -435,6 +441,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->wait_time = 0;
 	list_init(&t->prior_his);
 	t->lock = NULL;
+	list_init(&t->childs);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

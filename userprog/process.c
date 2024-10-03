@@ -22,6 +22,8 @@
 #include "vm/vm.h"
 #endif
 
+#define FILE_TABLE_LIMIT 1<<10
+
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
@@ -76,8 +78,13 @@ initd (void *f_name) {
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+	struct thread *cur = thread_current ();
+	memcpy(cur->parent_if, if_, sizeof(struct intr_frame));
+	tid_t tid = thread_create (name, PRI_DEFAULT, __do_fork, cur);
+	if (tid == TID_ERROR)
+		return tid;
+	
+	return ;
 }
 
 #ifndef VM
@@ -89,15 +96,18 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	struct thread *parent = (struct thread *) aux;
 	void *parent_page;
 	void *newpage;
-	bool writable;
+	bool writable = true;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
+	if(is_kern_pte(parent->pml4))
+		return false;
 
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
+	newpage = pml4_create();
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
@@ -107,6 +117,7 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+		return false;
 	}
 	return true;
 }
@@ -122,7 +133,7 @@ __do_fork (void *aux) {
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if;
+	struct intr_frame *parent_if = &parent->tf;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
@@ -240,7 +251,8 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	while (1>0)
+	uint64_t time = 1000000000;
+	while (time--)
 	{
 		asm volatile ("":::"memory");
 	}
@@ -678,3 +690,13 @@ setup_stack (struct intr_frame *if_) {
 	return success;
 }
 #endif /* VM */
+
+off_t process_set_file(struct file *f){
+	struct thread *cur = thread_current();
+	struct file **fdt = cur->fdt;
+	while (fdt[++cur->nfd] != NULL && cur->nfd <= FILE_TABLE_LIMIT){;}
+	if (cur->nfd > FILE_TABLE_LIMIT)
+		return -1;
+	fdt[cur->nfd] = f;
+	return cur->nfd;
+}
