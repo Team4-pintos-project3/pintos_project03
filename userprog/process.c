@@ -20,9 +20,12 @@
 #include "intrinsic.h"
 #ifdef VM
 #include "vm/vm.h"
+#include "threads/synch.h"
 #endif
 
-#define FILE_TABLE_LIMIT 1<<10
+#define FILE_TABLE_LIMIT 1<<7
+
+struct lock file_lock;
 
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
@@ -33,6 +36,7 @@ static void __do_fork (void *);
 static void
 process_init (void) {
 	struct thread *current = thread_current ();
+	lock_init(&file_lock);
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
@@ -51,6 +55,9 @@ process_create_initd (const char *file_name) {
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
+
+	char *save_ptr;
+	strtok_r(file_name, " ", &save_ptr);
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
@@ -80,11 +87,14 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
 	struct thread *cur = thread_current ();
 	memcpy(cur->parent_if, if_, sizeof(struct intr_frame));
-	tid_t tid = thread_create (name, PRI_DEFAULT, __do_fork, cur);
-	if (tid == TID_ERROR)
-		return tid;
-	
-	return ;
+	tid_t child_tid = thread_create (name, PRI_DEFAULT, __do_fork, cur);
+	if (child_tid == TID_ERROR)
+		return child_tid;
+
+	struct thread *child = get_child_process(child_tid);
+	sema_down(&child->load_sema);
+
+	return child->exit_status == TID_ERROR ? TID_ERROR : child_tid;
 }
 
 #ifndef VM
@@ -96,29 +106,35 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	struct thread *parent = (struct thread *) aux;
 	void *parent_page;
 	void *newpage;
-	bool writable = true;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
-	if(is_kern_pte(parent->pml4))
-		return false;
+	if(is_kernel_vaddr(parent->pml4))
+		return true;
 
 	/* 2. Resolve VA from the parent's page map level 4. */
 	parent_page = pml4_get_page (parent->pml4, va);
+	if (parent_page == NULL)
+		return false;
+	
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
-	newpage = pml4_create();
+	newpage = palloc_get_page(PAL_USER | PAL_USER);
+	if (newpage == NULL)
+		return false;
+	
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
+	memcpy(newpage, parent_page, PGSIZE);
 
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
-	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
+	if (!pml4_set_page (current->pml4, va, newpage, is_writable(pte)))
 		/* 6. TODO: if fail to insert page, do error handling. */
 		return false;
-	}
+	
 	return true;
 }
 #endif
@@ -133,11 +149,12 @@ __do_fork (void *aux) {
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
 	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
-	struct intr_frame *parent_if = &parent->tf;
+	struct intr_frame *parent_if = &parent->parent_if;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
 	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	if_.R.rax = 0;
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -160,13 +177,23 @@ __do_fork (void *aux) {
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
 
+	for(int i = 2; i <= parent->nfd; i++){
+		struct file *file = parent->fdt[i];
+		if(file == NULL)
+			continue;
+		current->fdt[i] = file_duplicate(file);
+	}
+	current->nfd = parent->nfd;
+
+	sema_up(&current->load_sema);
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		do_iret (&if_);
 error:
-	thread_exit ();
+	sema_up(&current->load_sema);
+	exit(TID_ERROR);
 }
 
 void push_args(char **argv, int argc, char **rspp){
@@ -176,8 +203,8 @@ void push_args(char **argv, int argc, char **rspp){
 		argv[i] = *rspp;
 	}
 	
-	int padding_byte = (**(int **)rspp) % 8;
-	for (int i = 0; i < padding_byte; i++){
+	int padding = (*(int *)rspp) % 8;
+	for (int i = 0; i < padding; i++){
 		*rspp -= 1;
 		**rspp = 0;
 	}
@@ -219,17 +246,21 @@ process_exec (void *f_name) {
 	argv[argc] = token;
 
 	/* And then load the binary */
+	lock_acquire(&file_lock);
 	success = load (file_name, &_if);
+	lock_release(&file_lock);
+
+	/* If load failed, quit. */
+	if (!success){
+		palloc_free_page (file_name);
+		return -1;
+	}
+
 	push_args(argv, argc, &_if.rsp);
 	_if.R.rdi = argc;
 	_if.R.rsi = _if.rsp + sizeof(void *);
 
-	hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, true);
-
-	/* If load failed, quit. */
-	palloc_free_page (file_name);
-	if (!success)
-		return -1;
+	palloc_free_page(file_name);
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -251,13 +282,15 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	uint64_t time = 1000000000;
-	while (time--)
-	{
-		asm volatile ("":::"memory");
-	}
+	struct thread *child = get_child_process(child_tid);
+	if(child == NULL)
+		return -1;
 	
-	return -1;
+	sema_down(&child->wait_sema);
+	list_remove(&child->child_elem);
+	sema_up(&child->exit_sema);
+	
+	return child->exit_status;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -268,8 +301,18 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	for(int i = 0; i < FILE_TABLE_LIMIT; i++){
+		if(curr->fdt[i] != NULL)
+			close(i);
+	}
+	
+	palloc_free_multiple(curr->fdt, FDT_PAGE_SIZE);
+	file_close(curr->running);
 
 	process_cleanup ();
+
+	sema_up(&curr->wait_sema);
+	sema_down(&curr->exit_sema);
 }
 
 /* Free the current process's resources. */
@@ -460,6 +503,8 @@ load (const char *file_name, struct intr_frame *if_) {
 		}
 	}
 
+	t->running = file;
+	file_deny_write(file);
 	/* Set up stack. */
 	if (!setup_stack (if_))
 		goto done;
@@ -474,7 +519,6 @@ load (const char *file_name, struct intr_frame *if_) {
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
 	return success;
 }
 
@@ -694,9 +738,183 @@ setup_stack (struct intr_frame *if_) {
 off_t process_set_file(struct file *f){
 	struct thread *cur = thread_current();
 	struct file **fdt = cur->fdt;
-	while (fdt[++cur->nfd] != NULL && cur->nfd <= FILE_TABLE_LIMIT){;}
+	while (fdt[cur->nfd] != NULL && cur->nfd <= FILE_TABLE_LIMIT)
+		cur->nfd++;
 	if (cur->nfd > FILE_TABLE_LIMIT)
 		return -1;
 	fdt[cur->nfd] = f;
 	return cur->nfd;
+}
+
+struct thread *get_child_process(tid_t tid){
+	struct thread *cur = thread_current(), *temp;
+	struct list_elem *c = list_begin(&cur->childs);
+	for (;c != list_end(&cur->childs); c = list_next(c)){
+		temp = list_entry(c, struct thread, child_elem);
+		if(temp->tid == tid)
+			return temp;
+	}
+	return NULL;
+}
+
+void chk_addr(void *addr){
+	if (addr == NULL)
+		exit(-1);
+	
+	if (!is_user_vaddr(addr))
+		exit(-1);
+	
+	if (pml4_get_page(thread_current()->pml4, addr) == NULL)
+		exit(-1);
+}
+
+void halt(){
+	power_off();
+}
+
+void exit(int status){
+	struct thread *cur = thread_current();
+	cur->exit_status = status;
+	printf("%s: exit(%d)\n", cur->name, status);
+	thread_exit();
+}
+
+int exec (const char *cmd_line){
+	chk_addr(cmd_line);
+
+	char *copy = palloc_get_page(0);
+	if (copy == NULL)
+		exit(-1);
+	strlcpy(copy, cmd_line, PGSIZE);
+	
+	if(process_exec(copy) == -1)
+		exit(-1);
+}
+
+bool create(const char *file, unsigned initial_size){
+	chk_addr(file);
+	lock_acquire(&file_lock);
+	bool result = filesys_create(file, initial_size);
+	lock_release(&file_lock);
+	return result;
+}
+
+bool remove(const char *file){
+	chk_addr(file);
+	lock_acquire(&file_lock);
+	bool result = filesys_remove(file);
+	lock_release(&file_lock);
+	return result;
+}
+
+int open (const char *file){
+	chk_addr(file);
+	lock_acquire(&file_lock);
+	struct file *f = filesys_open(file);
+	if (f == NULL){
+		lock_release(&file_lock);
+		return -1;
+	}
+	int fd = process_set_file(f);
+	if(fd == -1)
+		file_close(f);
+	lock_release(&file_lock);
+
+	return fd;
+}
+
+int filesize (int fd){
+	struct file * f = thread_current()->fdt[fd];
+	if(f == NULL)
+		return 0;
+	lock_acquire(&file_lock);
+	int result = file_length(f);
+	lock_release(&file_lock);
+	return result;
+}
+
+int read (int fd, void *buffer, unsigned size){
+	chk_addr(buffer);
+	if (FILE_TABLE_LIMIT <= fd || fd < 0)
+		return -1;
+	
+	struct thread *cur = thread_current();
+	struct file *f = cur->fdt[fd];
+	int read_cnt = 0;
+	if(f == NULL || fd == 1)
+		return -1;
+
+	lock_acquire(&file_lock);
+	if(fd == 0){
+		for (int i = 0; i < size; i++){
+			*((char*)buffer + i) = input_getc();
+			read_cnt++;
+		}
+	}else
+		read_cnt = file_read(f, buffer, size);
+	
+	lock_release(&file_lock);
+	return read_cnt;
+}
+
+int write (int fd, const void *buffer, unsigned size){
+	chk_addr(buffer);
+	if (FILE_TABLE_LIMIT <= fd || fd < 0)
+		return -1;
+	struct file *f = thread_current()->fdt[fd];
+	off_t write_size;
+
+	lock_acquire(&file_lock);
+	if (fd == 1){
+		putbuf(buffer, size);
+		write_size = size;
+	}else  if(f == NULL || fd == 0)
+		write_size = -1;
+	else
+		write_size = file_write(f, buffer, size);
+	
+	lock_release(&file_lock);
+
+	return write_size;
+}
+
+void seek (int fd, unsigned position){
+	if (FILE_TABLE_LIMIT <= fd || fd < 0)
+		return -1;
+	struct file *f = thread_current()->fdt[fd];
+	if(f == NULL || fd < 2)
+		return -1;
+
+	lock_acquire(&file_lock);
+	file_seek(f, position);
+	lock_release(&file_lock);
+}
+
+unsigned tell (int fd){
+	if (FILE_TABLE_LIMIT <= fd || fd < 0)
+		return -1;
+	struct file *f = thread_current()->fdt[fd];
+	if(f == NULL || fd < 2)
+		return -1;
+
+	lock_acquire(&file_lock);
+	unsigned result = file_tell(f);
+	lock_release(&file_lock);
+	return result;
+}
+
+void close (int fd){
+	struct thread *cur = thread_current();
+	if (FILE_TABLE_LIMIT <= fd || fd < 0)
+		return;
+	
+	struct file *file = cur->fdt[fd];
+	if (file == NULL)
+		return;
+	
+	lock_acquire(&file_lock);
+	file_close(file);
+	lock_release(&file_lock);
+
+	cur->fdt[fd] = NULL;
 }

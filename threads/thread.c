@@ -117,7 +117,6 @@ thread_init (void) {
 	initial_thread = running_thread ();
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
-	// initial_thread->pml4 = pml4_create();
 	initial_thread->tid = allocate_tid ();
 	initial_thread->wait_time = 0;
 }
@@ -210,10 +209,9 @@ thread_create (const char *name, int priority,
 	t->tf.eflags = FLAG_IF;
 
 	list_push_back(&thread_current()->childs, &t->child_elem);
-	t->fdt = palloc_get_multiple(PAL_ZERO | PAL_USER, 2); // ?? what is palloc flag
+	t->fdt = palloc_get_multiple(PAL_ZERO, FDT_PAGE_SIZE);
 	if(t->fdt == NULL)
 		return TID_ERROR;
-	t->nfd = 2;
 
 	/* Add to run queue. */
 	thread_unblock (t);
@@ -441,7 +439,13 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->wait_time = 0;
 	list_init(&t->prior_his);
 	t->lock = NULL;
+
+	t->exit_status = 0;
+	t->nfd = 2;
 	list_init(&t->childs);
+	sema_init(&t->load_sema, 0);
+	sema_init(&t->exit_sema, 0);
+	sema_init(&t->wait_sema, 0);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

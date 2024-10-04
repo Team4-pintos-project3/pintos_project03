@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -111,12 +112,18 @@ struct thread {
 #endif
 
 	/* Owned by thread.c. */
+	int exit_status;
 	struct intr_frame tf;               /* Information for switching */
 	struct file **fdt;
 	int nfd;
 	struct intr_frame *parent_if;        /* Information for fork */
 	struct list_elem child_elem;
 	struct list childs;
+	struct semaphore load_sema;
+	struct semaphore exit_sema;
+	struct semaphore wait_sema;
+	struct file *running;
+	
 	unsigned magic;                     /* Detects stack overflow. */
 };
 
@@ -157,4 +164,5 @@ void thread_ready(int64_t ticks);
 void do_iret (struct intr_frame *tf);
 bool
 cmp_prior(const struct list_elem *a, const struct list_elem *b, void *aux );
+
 #endif /* threads/thread.h */
