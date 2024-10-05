@@ -36,6 +36,7 @@ static void __do_fork (void *);
 static void
 process_init (void) {
 	struct thread *current = thread_current ();
+	sema_up(&current->load_sema);
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
@@ -91,6 +92,9 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 		return child_tid;
 
 	struct thread *child = get_child_process(child_tid);
+	if(child == NULL)
+		return TID_ERROR;
+
 	sema_down(&child->load_sema);
 
 	return child->exit_status == TID_ERROR ? TID_ERROR : child_tid;
@@ -184,12 +188,12 @@ __do_fork (void *aux) {
 	}
 	current->nfd = parent->nfd;
 
-	sema_up(&current->load_sema);
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
 	if (succ)
 		do_iret (&if_);
+	
 error:
 	succ = false;
 	sema_up(&current->load_sema);
@@ -246,9 +250,9 @@ process_exec (void *f_name) {
 	argv[argc] = token;
 
 	/* And then load the binary */
-	// lock_acquire(&file_lock);
+	lock_acquire(&file_lock);
 	success = load (file_name, &_if);
-	// lock_release(&file_lock);
+	lock_release(&file_lock);
 
 	/* If load failed, quit. */
 	if (!success){
@@ -313,6 +317,7 @@ process_exit (void) {
 	process_cleanup ();
 
 	sema_up(&curr->wait_sema);
+
 	sema_down(&curr->exit_sema);
 }
 
@@ -768,9 +773,6 @@ void chk_addr(void *addr){
 	
 	if (!is_user_vaddr(addr))
 		exit(-1);
-	
-	// if (pml4_get_page(thread_current()->pml4, addr) == NULL)
-	// 	exit(-1);
 }
 
 void halt(){
@@ -798,33 +800,31 @@ int exec (const char *cmd_line){
 
 bool create(const char *file, unsigned initial_size){
 	chk_addr(file);
-	// lock_acquire(&file_lock);
+	
 	bool result = filesys_create(file, initial_size);
-	// lock_release(&file_lock);
 	return result;
 }
 
 bool remove(const char *file){
 	chk_addr(file);
-	// lock_acquire(&file_lock);
+	
 	bool result = filesys_remove(file);
-	// lock_release(&file_lock);
 	return result;
 }
 
 int open (const char *file){
 	chk_addr(file);
-	// lock_acquire(&file_lock);
+	lock_acquire(&file_lock);
 	struct file *f = filesys_open(file);
 	if (f == NULL){
-		// lock_release(&file_lock);
+		lock_release(&file_lock);
 		return -1;
 	}
 
 	int fd = process_set_file(f);
 	if(fd == -1)
 		file_close(f);
-	// lock_release(&file_lock);
+	lock_release(&file_lock);
 
 	return fd;
 }
@@ -833,9 +833,8 @@ int filesize (int fd){
 	struct file * f = thread_current()->fdt[fd];
 	if(f == NULL)
 		return 0;
-	// lock_acquire(&file_lock);
+	
 	int result = file_length(f);
-	// lock_release(&file_lock);
 	return result;
 }
 
@@ -850,16 +849,16 @@ int read (int fd, void *buffer, unsigned size){
 	if(f == NULL || fd == 1)
 		return -1;
 
+	lock_acquire(&file_lock);
 	if(fd == 0){
 		for (int i = 0; i < size; i++){
 			*((char*)buffer + i) = input_getc();
 			read_cnt++;
 		}
-	}else{
-		// lock_acquire(&file_lock);
+	}else
 		read_cnt = file_read(f, buffer, size);
-		// lock_release(&file_lock);
-	}
+	
+	lock_release(&file_lock);
 	return read_cnt;
 }
 
@@ -876,9 +875,9 @@ int write (int fd, const void *buffer, unsigned size){
 	}else  if(f == NULL || fd == 0)
 		write_size = -1;
 	else{
-		// lock_acquire(&file_lock);
+		lock_acquire(&file_lock);
 		write_size = file_write(f, buffer, size);
-		// lock_release(&file_lock);
+		lock_release(&file_lock);
 	}
 
 	return write_size;
@@ -891,9 +890,7 @@ void seek (int fd, unsigned position){
 	if(f == NULL || fd < 2)
 		return -1;
 
-	// lock_acquire(&file_lock);
 	file_seek(f, position);
-	// lock_release(&file_lock);
 }
 
 unsigned tell (int fd){
@@ -903,9 +900,7 @@ unsigned tell (int fd){
 	if(f == NULL || fd < 2)
 		return -1;
 
-	// lock_acquire(&file_lock);
 	unsigned result = file_tell(f);
-	// lock_release(&file_lock);
 	return result;
 }
 
@@ -918,9 +913,7 @@ void close (int fd){
 	if (file == NULL)
 		return;
 	
-	// lock_acquire(&file_lock);
 	file_close(file);
-	// lock_release(&file_lock);
 
 	cur->fdt[fd] = NULL;
 }
