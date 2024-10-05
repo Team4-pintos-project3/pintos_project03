@@ -116,7 +116,7 @@ struct thread {
 	struct intr_frame tf;               /* Information for switching */
 	struct file **fdt;
 	int nfd;
-	struct intr_frame *parent_if;        /* Information for fork */
+	struct intr_frame parent_if;        /* Information for fork */
 	struct list_elem child_elem;
 	struct list childs;
 	struct semaphore load_sema;

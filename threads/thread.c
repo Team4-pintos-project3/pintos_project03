@@ -210,9 +210,10 @@ thread_create (const char *name, int priority,
 
 	list_push_back(&thread_current()->childs, &t->child_elem);
 	t->fdt = palloc_get_multiple(PAL_ZERO, FDT_PAGE_SIZE);
-	if(t->fdt == NULL)
+	if(t->fdt == NULL){
+		palloc_free_page(t);
 		return TID_ERROR;
-
+	}
 	/* Add to run queue. */
 	thread_unblock (t);
 
