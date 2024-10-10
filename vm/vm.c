@@ -4,6 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "lib/kernel/hash.h"
+#include "threads/mmu.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -81,6 +82,8 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
+	if (hash_insert(&spt->hash_table, &page->elem) == NULL)
+		succ = true;
 
 	return succ;
 }
@@ -118,8 +121,19 @@ static struct frame *
 vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
+	uint64_t *kva = palloc_get_page(PAL_USER);
+	ASSERT (kva != NULL);
 
+	frame = (struct frame *)calloc(1, sizeof(frame));
 	ASSERT (frame != NULL);
+
+	frame->kva = kva;
+
+	uint64_t *pte = pml4e_walk(thread_current()->pml4, kva, 1);
+	ASSERT (pte != NULL);
+
+	*pte = vtop(kva) | PTE_P | PTE_W | PTE_U;
+
 	ASSERT (frame->page == NULL);
 	return frame;
 }
@@ -159,7 +173,9 @@ bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
-
+	page = (struct page *)calloc(1, sizeof(page)); // 여기서 page init? 해줘야할 듯...
+	page->va = va;
+	
 	return vm_do_claim_page (page);
 }
 
@@ -173,6 +189,7 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	pml4_set_page(thread_current()->pml4, page->va, frame->kva, true);
 
 	return swap_in (page, frame->kva);
 }

@@ -2,7 +2,6 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
-#include "lib/kernel/hash.h"
 
 enum vm_type {
 	/* page not initialized */
@@ -90,6 +89,7 @@ struct supplemental_page_table {
 };
 
 #include "threads/thread.h"
+#include "lib/kernel/hash.h"
 void supplemental_page_table_init (struct supplemental_page_table *spt);
 bool supplemental_page_table_copy (struct supplemental_page_table *dst,
 		struct supplemental_page_table *src);
