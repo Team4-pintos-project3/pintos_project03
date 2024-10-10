@@ -8,6 +8,7 @@
 #include "hash.h"
 #include "../debug.h"
 #include "threads/malloc.h"
+#include "vm/vm.h"
 
 #define list_elem_to_hash_elem(LIST_ELEM)                       \
 	list_entry(LIST_ELEM, struct hash_elem, list_elem)
@@ -392,3 +393,15 @@ remove_elem (struct hash *h, struct hash_elem *e) {
 	list_remove (&e->list_elem);
 }
 
+uint64_t hashing (const struct hash_elem *e, void *aux) {
+	struct page *page = hash_entry(e, struct page, elem);
+	
+	return hash_bytes(page->va, sizeof(uint64_t));
+}
+
+bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux) {
+	struct page *page_a = hash_entry(a, struct page, elem);
+	struct page *page_b = hash_entry(b, struct page, elem);
+
+	return page_a->va < page_b->va;
+}
