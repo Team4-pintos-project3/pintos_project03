@@ -122,9 +122,11 @@ vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
 	uint64_t *kva = palloc_get_page(PAL_USER);
-	ASSERT (kva != NULL);
+	// ASSERT (kva != NULL);
+	if (kva == NULL)
+		return vm_evict_frame();
 
-	frame = (struct frame *)calloc(1, sizeof(frame));
+	frame = (struct frame *)calloc(1, sizeof(struct frame));
 	ASSERT (frame != NULL);
 
 	frame->kva = kva;
