@@ -55,8 +55,19 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
+		struct page *page = (struct page *)calloc(1,sizeof(struct page));
+		bool (*initializer)(struct page *, enum vm_type, void *kva);
+		if (VM_TYPE(type) == VM_ANON) {
+			initializer = anon_initializer;
+		} else if (VM_TYPE(type) == VM_FILE) {
+			initializer = file_backed_initializer;
+		}
+		uninit_new(page, upage, init, type, aux, initializer);
+		page->writable = writable;
 
 		/* TODO: Insert the page into the spt. */
+		if (!spt_insert_page(spt, page))
+			return false;
 	}
 err:
 	return false;
@@ -131,7 +142,7 @@ vm_get_frame (void) {
 
 	frame->kva = kva;
 
-	uint64_t *pte = pml4e_walk(thread_current()->pml4, kva, 1);
+	uint64_t *pte = pml4e_walk(thread_current()->pml4, kva, false);
 	ASSERT (pte != NULL);
 
 	*pte = vtop(kva) | PTE_P | PTE_W | PTE_U;
@@ -175,8 +186,11 @@ bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function */
-	page = (struct page *)calloc(1, sizeof(page)); // 여기서 page init? 해줘야할 듯...
-	page->va = va;
+	// page = (struct page *)calloc(1, sizeof(page)); // 여기서 page init? 해줘야할 듯...
+	// page->va = va;
+	page = spt_find_page(&thread_current()->spt, va);
+	if (page == NULL)
+		return false;
 	
 	return vm_do_claim_page (page);
 }
@@ -191,7 +205,7 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, true))
+	if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable))
 		return false;
 
 	return swap_in (page, frame->kva);
