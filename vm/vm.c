@@ -56,6 +56,8 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
 		struct page *page = (struct page *)calloc(1,sizeof(struct page));
+		uint64_t *pte = pml4e_walk(thread_current()->pml4, page, true);
+		*pte = vtop(page) | PTE_W | PTE_P;
 		bool (*initializer)(struct page *, enum vm_type, void *kva);
 		if (VM_TYPE(type) == VM_ANON) {
 			initializer = anon_initializer;
@@ -138,6 +140,8 @@ vm_get_frame (void) {
 		return vm_evict_frame();
 
 	frame = (struct frame *)calloc(1, sizeof(struct frame));
+	uint64_t *pte = pml4e_walk(thread_current()->pml4, frame, true);
+	*pte = vtop(frame) | PTE_W | PTE_P;
 	ASSERT (frame != NULL);
 
 	frame->kva = kva;
@@ -169,6 +173,11 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	struct page *page = NULL;
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	if (!not_present)
+		return false;
+	page = spt_find_page(spt, addr);
+	if (page == NULL)
+		return false;
 
 	return vm_do_claim_page (page);
 }
