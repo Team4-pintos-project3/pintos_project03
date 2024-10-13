@@ -394,9 +394,9 @@ remove_elem (struct hash *h, struct hash_elem *e) {
 }
 
 uint64_t hashing (const struct hash_elem *e, void *aux) {
-	struct page *page = hash_entry(e, struct page, elem);
+	struct page *page_ = hash_entry(e, struct page, elem);
 	
-	return hash_bytes(page->va, sizeof(uint64_t));
+	return hash_bytes(&page_->va, sizeof(page_->va));
 }
 
 bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux) {

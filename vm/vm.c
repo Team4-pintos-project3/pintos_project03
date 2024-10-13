@@ -71,7 +71,11 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 
 		/* TODO: Insert the page into the spt. */
 		if (!spt_insert_page(spt, page))
-			return false;
+			goto err;
+
+		return true;
+	} else {
+		goto err;
 	}
 err:
 	return false;
@@ -83,7 +87,7 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
 	/* TODO: Fill this function. */
 	struct page page_;
-	page_.va = va;
+	page_.va = pg_round_down(va);
 	struct hash_elem *elem_ = hash_find(&spt->hash_table, &page_.elem);
 	if (elem_ != NULL)
 		page = hash_entry(elem_, struct page, elem);
@@ -170,6 +174,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	/* TODO: Your code goes here */
 	if (!not_present)
 		return false;
+	
 	page = spt_find_page(spt, addr);
 	if (page == NULL)
 		return false;
