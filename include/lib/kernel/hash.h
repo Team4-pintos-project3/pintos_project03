@@ -100,5 +100,6 @@ uint64_t hash_int (int);
 uint64_t hashing (const struct hash_elem *e, void *aux);
 bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux);
 void hash_acting (struct hash_elem *e, void *aux);
+void page_destroy(struct hash_elem *e, void *aux);
 
 #endif /* lib/kernel/hash.h */

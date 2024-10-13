@@ -315,7 +315,8 @@ process_exit (void) {
 	file_close(curr->running);
 
 	process_cleanup ();
-
+	hash_destroy(&curr->spt.hash_table, NULL);
+	
 	sema_up(&curr->wait_sema);
 
 	sema_down(&curr->exit_sema);
@@ -687,7 +688,8 @@ lazy_load_segment (struct page *page, void *aux) {
 	size_t offset = file_page->offset;
  	size_t read_bytes = file_page->read_bytes;
  	size_t zero_bytes = file_page->zero_bytes;
-	
+	file_seek(file, offset);
+
 	if (file_read (file, page->va, read_bytes) != (int) read_bytes) {
 		return false;
 	}
@@ -716,7 +718,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
-	ofs -= PGSIZE;
+
 	while (read_bytes > 0 || zero_bytes > 0) {
 		/* Do calculate how to fill this page.
 		 * We will read PAGE_READ_BYTES bytes from FILE
@@ -728,13 +730,14 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		// void *aux = NULL;
 		struct file_page *aux = (struct file_page *)malloc(sizeof(struct file_page));
 		aux->file = file;
-		ofs += PGSIZE;
 		aux->offset = ofs;
 		aux->read_bytes = page_read_bytes;
 		aux->zero_bytes = page_zero_bytes;
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 					writable, lazy_load_segment, aux))
 			return false;
+		
+		ofs += PGSIZE;
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;

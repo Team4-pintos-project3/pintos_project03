@@ -405,3 +405,8 @@ bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux) {
 
 	return page_a->va < page_b->va;
 }
+
+void page_destroy(struct hash_elem *e, void *aux UNUSED){
+	struct page *page = hash_entry(e, struct page, elem);
+	destroy(page);
+}
