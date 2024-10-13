@@ -406,7 +406,26 @@ bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux) {
 	return page_a->va < page_b->va;
 }
 
-void page_destroy(struct hash_elem *e, void *aux UNUSED){
+void page_destroy(struct hash_elem *e, void *aux UNUSED) {
 	struct page *page = hash_entry(e, struct page, elem);
 	destroy(page);
+}
+
+void page_copy(struct hash_elem *e, void *aux UNUSED) {
+	struct page *page = hash_entry(e, struct page, elem);
+	int type = vm_type(page->operations->type);
+
+	if (type == VM_UNINIT) {
+		vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, page->uninit.aux);
+	} else if (type == VM_ANON) {
+		vm_alloc_page(page->operations->type, page->va, page->writable);
+		vm_claim_page(page->va);
+		if (page->frame != NULL) {
+			
+		// } else {
+
+		}
+	// } else if (type == VM_FILE) {
+
+	}
 }

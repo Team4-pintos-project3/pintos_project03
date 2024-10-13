@@ -2,6 +2,7 @@
 
 #include "vm/vm.h"
 #include "devices/disk.h"
+#include "threads/mmu.h"
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
@@ -55,7 +56,8 @@ anon_destroy (struct page *page) {
 	}
 
 	//swap slot을 disk에서 제거?
-
+	
+	pml4_clear_page(thread_current()->pml4, page->va);
 	free(page);
 
 }
