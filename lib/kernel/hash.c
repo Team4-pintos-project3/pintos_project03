@@ -9,6 +9,8 @@
 #include "../debug.h"
 #include "threads/malloc.h"
 #include "vm/vm.h"
+#include <string.h>
+#include "threads/vaddr.h"
 
 #define list_elem_to_hash_elem(LIST_ELEM)                       \
 	list_entry(LIST_ELEM, struct hash_elem, list_elem)
@@ -417,12 +419,17 @@ void page_copy(struct hash_elem *e, void *aux UNUSED) {
 
 	if (type == VM_UNINIT) {
 		vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, page->uninit.aux);
-	} else if (type == VM_ANON) {
+	} else if (type == VM_ANON) { 
+		//이 부분은 생각을 해봤는데 이미 anon타입인거보면 이미 타입이 한번 바뀌었음 
+		//그래서 init을 더 해줄 필요가 없으니까 뒤에 init 타입이랑 file정보를 빼주는듯
+		//근데 궁금한건 형 알고쓴거아님???
 		vm_alloc_page(page->operations->type, page->va, page->writable);
-		vm_claim_page(page->va);
 		if (page->frame != NULL) {
-			
+			vm_claim_page(page->va);
+			struct page *page_child = spt_find_page(&thread_current()->spt, page->va);
+			memcpy(page_child->frame->kva, page->frame->kva, PGSIZE);
 		// } else {
+		// swap 정보 copy
 
 		}
 	// } else if (type == VM_FILE) {
