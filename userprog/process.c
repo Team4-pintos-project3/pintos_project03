@@ -36,7 +36,7 @@ static void __do_fork (void *);
 static void
 process_init (void) {
 	struct thread *current = thread_current ();
-	sema_up(&current->load_sema);
+	// sema_up(&current->load_sema);
 }
 
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
@@ -188,6 +188,8 @@ __do_fork (void *aux) {
 	}
 	current->nfd = parent->nfd;
 
+	sema_up(&current->load_sema);
+
 	process_init ();
 
 	/* Finally, switch to the newly created process. */
@@ -241,6 +243,7 @@ process_exec (void *f_name) {
 
 	/* We first kill the current context */
 	process_cleanup ();
+	supplemental_page_table_init(&thread_current()->spt);
 
 	token = strtok_r(file_name, " ", &save_ptr);
 	while(token != NULL){
@@ -259,6 +262,8 @@ process_exec (void *f_name) {
 		palloc_free_page (file_name);
 		return -1;
 	}
+
+	// sema_up(&thread_current()->load_sema);
 
 	push_args(argv, argc, &_if.rsp);
 	_if.R.rdi = argc;
@@ -315,7 +320,6 @@ process_exit (void) {
 	file_close(curr->running);
 
 	process_cleanup ();
-	hash_destroy(&curr->spt.hash_table, NULL);
 	
 	sema_up(&curr->wait_sema);
 
@@ -874,7 +878,10 @@ int read (int fd, void *buffer, unsigned size){
 	int read_cnt = 0;
 	if(f == NULL || fd == 1)
 		return -1;
-
+/////////////////////////////////////////////////////////
+	struct page *page = spt_find_page(&cur->spt,buffer);
+	uint64_t *pte = pml4e_walk(cur->pml4,buffer,0);
+/////////////////////////////////////////////////////////
 	lock_acquire(&file_lock);
 	if(fd == 0){
 		for (int i = 0; i < size; i++){

@@ -228,13 +228,31 @@ supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 bool
 supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 		struct supplemental_page_table *src UNUSED) {
-	
+	hash_apply(&src->hash_table, page_copy);
+	return true;
 }
+
+// bool
+// supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
+// 	struct supplemental_page_table *src UNUSED) {
+// 	struct hash_iterator iter;
+// 	hash_first(&iter, &src);
+// 	// hash_iter_copy(&iter, &src);
+// 	while (hash_next(&iter)) {
+// 		// 현재 해시 테이블 요소 가져오기
+// 		struct hash_elem *e = hash_cur(&iter);
+		
+// 		// 각 페이지 복사
+// 		page_copy(e, NULL);  // aux는 사용되지 않으므로 NULL 전달
+// 	}
+// 	return true;
+// }
+
 
 /* Free the resource hold by the supplemental page table */
 void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
-	hash_clear(&spt->hash_table, page_destroy);
+	hash_destroy(&spt->hash_table, page_destroy);
 }

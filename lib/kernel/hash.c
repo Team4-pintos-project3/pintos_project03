@@ -415,10 +415,18 @@ void page_destroy(struct hash_elem *e, void *aux UNUSED) {
 
 void page_copy(struct hash_elem *e, void *aux UNUSED) {
 	struct page *page = hash_entry(e, struct page, elem);
-	int type = vm_type(page->operations->type);
+	int type = VM_TYPE(page->operations->type);
 
 	if (type == VM_UNINIT) {
-		vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, page->uninit.aux);
+		// void *aux = (struct file_page *)malloc(sizeof(struct file_page));
+		if (page->uninit.aux) {
+			struct file_page *file_page;
+			file_page = (struct file_page *)malloc(sizeof(struct file_page));
+			memcpy(file_page, page->uninit.aux, sizeof(struct file_page));
+			vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, file_page);
+		} else {
+			vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, NULL);
+		}
 	} else if (type == VM_ANON) { 
 		//이 부분은 생각을 해봤는데 이미 anon타입인거보면 이미 타입이 한번 바뀌었음 
 		//그래서 init을 더 해줄 필요가 없으니까 뒤에 init 타입이랑 file정보를 빼주는듯
