@@ -30,7 +30,7 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	page->operations = &file_ops;
 	struct file_page *aux = page->uninit.aux;
 	struct file_page *file_page = &page->file;
-	file_page = aux;
+	memcpy(file_page, aux, sizeof(struct file_page));
 }
 
 /* Swap in the page by read contents from the file. */
@@ -49,15 +49,15 @@ file_backed_swap_out (struct page *page) {
 static void
 file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
-	// if (page->frame != NULL) {
-	// 	// if (pml4_is_dirty(thread_current()->pml4, page->va))
-	// 	// 	file_write(page->file.file, page->frame->kva, page->file.read_bytes);
-	// 	palloc_free_page(page->frame->kva);
-	// 	free(page->frame);
-	// }
+	if (page->frame != NULL) {
+		if (pml4_is_dirty(thread_current()->pml4, page->va))
+			file_write_at(page->file.file, page->frame->kva, page->file.read_bytes, page->file.offset);
+		palloc_free_page(page->frame->kva);
+		free(page->frame);
+	}
 	
-	// pml4_clear_page(thread_current()->pml4, page->va);
-	// free(file_page->file);
+	pml4_clear_page(thread_current()->pml4, page->va);
+	free(file_page->file);
 }
 
 /* Do the mmap */
@@ -84,20 +84,17 @@ do_mmap (void *addr, size_t length, int writable,
 		zero_bytes = PGSIZE - read_bytes;
 		
 		struct file_page *aux = (struct file_page *)malloc(sizeof(struct file_page));
-		struct file *file_;
 
 		aux->offset = offset;
 		aux->read_bytes = read_bytes;
 		aux->zero_bytes = zero_bytes;
 		if (!read_bytes) {
-			file_ = file;
-			aux->file = file_;
+			aux->file = file;
 			if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 						writable, lazy_load_segment, aux))
 				return NULL;
 		} else {
-			file_ = file_reopen(file);
-			aux->file = file_;
+			aux->file = file_reopen(file);
 			if (!vm_alloc_page_with_initializer (VM_FILE, upage,
 						writable, lazy_load_segment, aux))
 				return NULL;
@@ -108,7 +105,7 @@ do_mmap (void *addr, size_t length, int writable,
 
 		offset += PGSIZE;
 		upage += PGSIZE;
-		length -= PGSIZE;
+		length -= length < PGSIZE ? length : PGSIZE;
 	}
 	palloc_free_page(buffer);
 
