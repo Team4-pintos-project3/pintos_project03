@@ -411,6 +411,7 @@ bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux) {
 void page_destroy(struct hash_elem *e, void *aux UNUSED) {
 	struct page *page = hash_entry(e, struct page, elem);
 	destroy(page);
+	free(page);
 }
 
 void page_copy(struct hash_elem *e, void *aux UNUSED) {

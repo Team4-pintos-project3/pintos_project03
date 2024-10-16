@@ -880,7 +880,8 @@ int read (int fd, void *buffer, unsigned size){
 		return -1;
 /////////////////////////////////////////////////////////
 	struct page *page = spt_find_page(&cur->spt,buffer);
-	uint64_t *pte = pml4e_walk(cur->pml4,buffer,0);
+	if (!page->writable)
+		exit(-1);
 /////////////////////////////////////////////////////////
 	lock_acquire(&file_lock);
 	if(fd == 0){
@@ -949,4 +950,16 @@ void close (int fd){
 	file_close(file);
 
 	cur->fdt[fd] = NULL;
+}
+
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
+
+
+
+
+	do_mmap(addr, length, writable, file, offset);
+}
+
+void munmap (void *addr) {
+
 }

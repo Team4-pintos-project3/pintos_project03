@@ -157,6 +157,11 @@ vm_get_frame (void) {
 /* Growing the stack. */
 static void
 vm_stack_growth (void *addr UNUSED) {
+	uintptr_t align = pg_round_down(addr);
+	for (; align < USER_STACK - PGSIZE; align += PGSIZE) {
+		if (!spt_find_page(&thread_current()->spt, align))
+			vm_alloc_page(VM_ANON, align, true);
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -176,7 +181,19 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 		return false;
 	
 	page = spt_find_page(spt, addr);
-	if (page == NULL)
+	if (page == NULL) {
+		uintptr_t *gap = f->rsp - (uintptr_t)addr;
+		if (0 <= gap && gap <= 8 && USER_STACK_LIMIT <= addr) {
+			vm_stack_growth(addr);
+			page = spt_find_page(spt, addr);
+			if (page == NULL)
+				return false;
+		} else {
+			return false;
+		}
+	}
+
+	if (write && !page->writable)
 		return false;
 
 	return vm_do_claim_page (page);
