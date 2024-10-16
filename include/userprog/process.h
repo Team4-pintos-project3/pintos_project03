@@ -18,6 +18,8 @@ void process_activate (struct thread *next);
 off_t process_set_file(struct file *f);
 struct thread *get_child_process(tid_t tid);
 
+bool lazy_load_segment (struct page *page, void *aux);
+
 void file_lock_init();
 void halt();
 void exit(int status);
