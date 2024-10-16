@@ -409,6 +409,7 @@ bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux) {
 }
 
 void page_destroy(struct hash_elem *e, void *aux UNUSED) {
+	remove_elem(&thread_current()->spt.hash_table,e);
 	struct page *page = hash_entry(e, struct page, elem);
 	destroy(page);
 	free(page);

@@ -49,6 +49,7 @@ struct page {
 	/* Your implementation */
 	struct hash_elem elem;
 	bool writable;
+	struct list_elem mapped_elem;
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {

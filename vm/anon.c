@@ -54,8 +54,9 @@ anon_destroy (struct page *page) {
 		palloc_free_page(page->frame->kva);
 		free(page->frame);
 	}
-
+	// else {
 	//swap slot을 disk에서 제거?
+	// }
 	
 	pml4_clear_page(thread_current()->pml4, page->va);
 }

@@ -3,6 +3,8 @@
 #include "vm/vm.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
+#include <string.h>
+#include "threads/mmu.h"
 
 static bool file_backed_swap_in (struct page *page, void *kva);
 static bool file_backed_swap_out (struct page *page);
@@ -26,8 +28,9 @@ bool
 file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
 	page->operations = &file_ops;
-
+	struct file_page *aux = page->uninit.aux;
 	struct file_page *file_page = &page->file;
+	file_page = aux;
 }
 
 /* Swap in the page by read contents from the file. */
@@ -46,6 +49,15 @@ file_backed_swap_out (struct page *page) {
 static void
 file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+	// if (page->frame != NULL) {
+	// 	// if (pml4_is_dirty(thread_current()->pml4, page->va))
+	// 	// 	file_write(page->file.file, page->frame->kva, page->file.read_bytes);
+	// 	palloc_free_page(page->frame->kva);
+	// 	free(page->frame);
+	// }
+	
+	// pml4_clear_page(thread_current()->pml4, page->va);
+	// free(file_page->file);
 }
 
 /* Do the mmap */
@@ -63,26 +75,37 @@ do_mmap (void *addr, size_t length, int writable,
 	uint64_t *buffer = palloc_get_page(0);
 	size_t read_bytes;
 	size_t zero_bytes;
+	
+	struct list *mapped_list = (struct list *)malloc(sizeof(struct list));
+	list_init(mapped_list);
 
 	while (length > 0) {
 		read_bytes = file_read_at(file, buffer, PGSIZE, offset);
 		zero_bytes = PGSIZE - read_bytes;
 		
 		struct file_page *aux = (struct file_page *)malloc(sizeof(struct file_page));
-		aux->file = file;
+		struct file *file_;
+
 		aux->offset = offset;
 		aux->read_bytes = read_bytes;
 		aux->zero_bytes = zero_bytes;
 		if (!read_bytes) {
+			file_ = file;
+			aux->file = file_;
 			if (!vm_alloc_page_with_initializer (VM_ANON, upage,
 						writable, lazy_load_segment, aux))
 				return NULL;
 		} else {
+			file_ = file_reopen(file);
+			aux->file = file_;
 			if (!vm_alloc_page_with_initializer (VM_FILE, upage,
 						writable, lazy_load_segment, aux))
 				return NULL;
 		}
 		
+		struct page *page = spt_find_page(&thread_current()->spt, upage);
+		list_push_back(mapped_list, &page->mapped_elem);
+
 		offset += PGSIZE;
 		upage += PGSIZE;
 		length -= PGSIZE;
@@ -95,4 +118,16 @@ do_mmap (void *addr, size_t length, int writable,
 /* Do the munmap */
 void
 do_munmap (void *addr) {
+	struct page *page = spt_find_page(&thread_current()->spt, addr);
+	struct list_elem *head = list_prev(&page->mapped_elem);
+	if (head->prev)
+		exit(-1);
+	struct list *list = list_entry(head, struct list, head);
+	while (!list_empty (list)) {
+		struct list_elem *e = list_pop_front (list);
+		page = list_entry(e, struct page, mapped_elem);
+		page_destroy(&page->elem, NULL);
+	}
+
+	free(list);
 }
