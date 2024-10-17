@@ -5,6 +5,7 @@
 #include "userprog/process.h"
 #include <string.h>
 #include "threads/mmu.h"
+#include "hash.h"
 
 static bool file_backed_swap_in (struct page *page, void *kva);
 static bool file_backed_swap_out (struct page *page);
@@ -123,8 +124,7 @@ do_munmap (void *addr) {
 	while (!list_empty (list)) {
 		struct list_elem *e = list_pop_front (list);
 		page = list_entry(e, struct page, mapped_elem);
-		list_remove(&page->elem);
-		// page_destroy(&page->elem, NULL);
+		hash_delete(&thread_current()->spt.hash_table,&page->elem);
 		vm_dealloc_page(page);
 	}
 

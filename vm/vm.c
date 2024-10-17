@@ -184,6 +184,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
 	if (page == NULL) {
 		uintptr_t *gap = f->rsp - (uintptr_t)addr;
 		if (0 <= gap && gap <= 8 && USER_STACK_LIMIT <= addr) {
+		// if (0 == gap && USER_STACK_LIMIT <= addr) {
 			vm_stack_growth(addr);
 			page = spt_find_page(spt, addr);
 			if (page == NULL)
