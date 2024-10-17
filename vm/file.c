@@ -69,7 +69,7 @@ do_mmap (void *addr, size_t length, int writable,
 		zero_bytes = PGSIZE - read_bytes;
 		
 		struct file_page *aux = (struct file_page *)malloc(sizeof(struct file_page));
-		aux->file = file;
+		aux->file = file_reopen (file);
 		aux->offset = offset;
 		aux->read_bytes = read_bytes;
 		aux->zero_bytes = zero_bytes;
@@ -93,6 +93,31 @@ do_mmap (void *addr, size_t length, int writable,
 }
 
 /* Do the munmap */
-void
-do_munmap (void *addr) {
+void do_munmap(void *addr) {
+    struct thread *cur = thread_current();
+    size_t start = 0;
+
+    while (true) {
+        // 현재 가상 주소를 기준으로 SPT에서 페이지 정보 가져오기
+        void *upage = addr + start;
+        struct page *page = spt_find_page(&cur->spt, upage);
+
+        // SPT에서 페이지를 찾지 못하면 루프 종료
+        if (!page) {
+            break;
+        }
+
+        // 페이지의 물리 프레임 해제
+        if (page->frame) {
+            // 물리 메모리 해제
+            palloc_free_page(page->frame->kva);
+            
+        }
+
+		// SPT에서 페이지 정보 제거
+            spt_remove_page(&cur->spt, page);
+		
+        // 다음 페이지로 이동
+        start += PGSIZE;
+    }
 }

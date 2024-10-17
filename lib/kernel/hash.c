@@ -409,6 +409,7 @@ bool compare_page_va (struct hash_elem *a, struct hash_elem *b, void *aux) {
 }
 
 void page_destroy(struct hash_elem *e, void *aux UNUSED) {
+	// remove_elem(&thread_current()->spt.hash_table, e);
 	struct page *page = hash_entry(e, struct page, elem);
 	destroy(page);
 	free(page);
@@ -431,7 +432,7 @@ void page_copy(struct hash_elem *e, void *aux UNUSED) {
 	} else if (type == VM_ANON) { 
 		//이 부분은 생각을 해봤는데 이미 anon타입인거보면 이미 타입이 한번 바뀌었음 
 		//그래서 init을 더 해줄 필요가 없으니까 뒤에 init 타입이랑 file정보를 빼주는듯
-		//근데 궁금한건 형 알고쓴거아님???
+		//근데 궁금한건 형 알고쓴거아님??? 김은상 바보
 		vm_alloc_page(page->operations->type, page->va, page->writable);
 		if (page->frame != NULL) {
 			vm_claim_page(page->va);
