@@ -64,7 +64,7 @@ file_backed_destroy (struct page *page) {
 void *
 do_mmap (void *addr, size_t length, int writable,
 		struct file *file, off_t offset) {
-	if (!file || !addr || pg_ofs(addr) || offset % PGSIZE || !length)
+	if (!file || !addr || pg_ofs(addr) || is_kernel_vaddr(addr) || offset % PGSIZE || (long)length <= 0)
 		return NULL;
 
 	char a;
