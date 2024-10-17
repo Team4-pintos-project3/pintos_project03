@@ -123,7 +123,9 @@ do_munmap (void *addr) {
 	while (!list_empty (list)) {
 		struct list_elem *e = list_pop_front (list);
 		page = list_entry(e, struct page, mapped_elem);
-		page_destroy(&page->elem, NULL);
+		list_remove(&page->elem);
+		// page_destroy(&page->elem, NULL);
+		vm_dealloc_page(page);
 	}
 
 	free(list);
