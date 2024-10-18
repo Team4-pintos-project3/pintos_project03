@@ -32,18 +32,46 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	struct file_page *aux = page->uninit.aux;
 	struct file_page *file_page = &page->file;
 	memcpy(file_page, aux, sizeof(struct file_page));
+	return true;
 }
 
 /* Swap in the page by read contents from the file. */
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
+		
+	struct file *file = file_page->file;
+	size_t offset = file_page->offset;
+ 	size_t read_bytes = file_page->read_bytes;
+ 	size_t zero_bytes = file_page->zero_bytes;
+	size_t actual_read_bytes;
+	if ((actual_read_bytes = file_read_at (file, page->frame->kva, read_bytes, offset)) != (int) read_bytes) {
+		return false;
+	}
+	memset (page->frame->kva + read_bytes, 0, zero_bytes);
+	if (!pml4_set_page(thread_current()->pml4, page->va, page->frame->kva, page->writable))
+		return false;
+	// pml4_set_dirty(thread_current()->pml4, page->va, false);
+	// insert_frame_table(page);
+	
+	return true;
 }
 
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+	if (page->frame != NULL) {
+		if (pml4_is_dirty(thread_current()->pml4, page->va))
+			file_write_at(file_page->file, page->frame->kva, file_page->read_bytes, file_page->offset);
+		// list_remove(&page->frame->elem);
+		memset(page->frame->kva, 0, PGSIZE);
+		page->frame = NULL;
+		pml4_clear_page(thread_current()->pml4, page->va);
+	} else {
+		return false;
+	}
+	return true;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
@@ -54,10 +82,11 @@ file_backed_destroy (struct page *page) {
 		if (pml4_is_dirty(thread_current()->pml4, page->va))
 			file_write_at(page->file.file, page->frame->kva, page->file.read_bytes, page->file.offset);
 		palloc_free_page(page->frame->kva);
+		list_remove(&page->frame->elem);
 		free(page->frame);
+		pml4_clear_page(thread_current()->pml4, page->va);
 	}
 	
-	pml4_clear_page(thread_current()->pml4, page->va);
 	free(file_page->file);
 }
 

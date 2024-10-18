@@ -18,7 +18,20 @@ vm_init (void) {
 	register_inspect_intr ();
 	/* DO NOT MODIFY UPPER LINES. */
 	/* TODO: Your code goes here. */
+	frame_table_init ();
+	swap_table_init ();
 }
+
+struct list frame_table;
+
+void
+frame_table_init (void) {
+	list_init(&frame_table);
+}
+
+// void insert_frame_table (struct page *page) {
+// 	list_push_back(&frame_table, &page->frame->elem);
+// }
 
 /* Get the type of the page. This function is useful if you want to know the
  * type of the page after it will be initialized.
@@ -118,7 +131,8 @@ static struct frame *
 vm_get_victim (void) {
 	struct frame *victim = NULL;
 	 /* TODO: The policy for eviction is up to you. */
-
+	victim = list_entry(list_pop_front(&frame_table),struct frame, elem);
+	
 	return victim;
 }
 
@@ -128,8 +142,11 @@ static struct frame *
 vm_evict_frame (void) {
 	struct frame *victim UNUSED = vm_get_victim ();
 	/* TODO: swap out the victim and return the evicted frame. */
+	if (!swap_out(victim->page))
+		return NULL;
+	victim->page = NULL;
 
-	return NULL;
+	return victim;
 }
 
 /* palloc() and get frame. If there is no available page, evict the page
@@ -141,16 +158,18 @@ vm_get_frame (void) {
 	struct frame *frame = NULL;
 	/* TODO: Fill this function. */
 	uint64_t *kva = palloc_get_page(PAL_USER);
-	// ASSERT (kva != NULL);
-	if (kva == NULL)
-		return vm_evict_frame();
+	if (kva == NULL) {
+		frame = vm_evict_frame();
+	} else {
+		frame = (struct frame *)calloc(1, sizeof(struct frame));
+		frame->kva = kva;
+	}
 
-	frame = (struct frame *)calloc(1, sizeof(struct frame));
+	list_push_back(&frame_table, &frame->elem);
+
 	ASSERT (frame != NULL);
-
-	frame->kva = kva;
-
 	ASSERT (frame->page == NULL);
+
 	return frame;
 }
 
@@ -225,6 +244,8 @@ static bool
 vm_do_claim_page (struct page *page) {
 	struct frame *frame = vm_get_frame ();
 
+	ASSERT (frame->page == NULL);
+	ASSERT (page->frame == NULL);
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
@@ -249,23 +270,6 @@ supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
 	hash_apply(&src->hash_table, page_copy);
 	return true;
 }
-
-// bool
-// supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-// 	struct supplemental_page_table *src UNUSED) {
-// 	struct hash_iterator iter;
-// 	hash_first(&iter, &src);
-// 	// hash_iter_copy(&iter, &src);
-// 	while (hash_next(&iter)) {
-// 		// 현재 해시 테이블 요소 가져오기
-// 		struct hash_elem *e = hash_cur(&iter);
-		
-// 		// 각 페이지 복사
-// 		page_copy(e, NULL);  // aux는 사용되지 않으므로 NULL 전달
-// 	}
-// 	return true;
-// }
-
 
 /* Free the resource hold by the supplemental page table */
 void

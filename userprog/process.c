@@ -688,18 +688,19 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
 	struct file_page *file_page = aux;
+	
 	struct file *file = file_page->file;
 	size_t offset = file_page->offset;
  	size_t read_bytes = file_page->read_bytes;
  	size_t zero_bytes = file_page->zero_bytes;
-	file_seek(file, offset);
+
 	size_t actual_read_bytes;
-	if ((actual_read_bytes = file_read (file, page->va, read_bytes)) != (int) read_bytes) {
+	if ((actual_read_bytes = file_read_at (file, page->frame->kva, read_bytes, offset)) != (int) read_bytes) {
 		return false;
 	}
-	memset (page->va + read_bytes, 0, zero_bytes);
+	memset (page->frame->kva + read_bytes, 0, zero_bytes);
+	// pml4_set_dirty(thread_current()->pml4, page->va, false);
 	free(file_page);
-	pml4_set_dirty(thread_current()->pml4, page->va, false);
 	return true;
 }
 
