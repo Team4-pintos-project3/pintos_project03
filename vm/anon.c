@@ -104,9 +104,7 @@ anon_destroy (struct page *page) {
 		free(page->frame);
 		pml4_clear_page(thread_current()->pml4, page->va);
 	} else {
-		lock_acquire(&st.lock);
 		clear_swap_slot(anon_page->sector_start);
-		lock_release(&st.lock);
 	}
 	
 }
