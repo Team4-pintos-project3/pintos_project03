@@ -15,7 +15,7 @@ static disk_sector_t get_swap_slot(void);
 static void clear_swap_slot(disk_sector_t clear_sector);
 
 struct swap_table {
-	struct lock lock;               /* Mutual exclusion. */
+	// struct lock lock;               /* Mutual exclusion. */
 	struct bitmap *used_map;        /* Bitmap of free pages. */
 };
 
@@ -42,7 +42,7 @@ vm_anon_init (void) {
 void
 swap_table_init(void) {
 	st.used_map = bitmap_create(disk_size(swap_disk));
-	lock_init(&st.lock);
+	// lock_init(&st.lock);
 }
 
 /* Initialize the file mapping */
@@ -60,16 +60,16 @@ static bool
 anon_swap_in (struct page *page, void *kva) {
 	struct anon_page *anon_page = &page->anon;
 	
-	lock_acquire(&st.lock);
-	clear_swap_slot(anon_page->sector_start);
+	// lock_acquire(&st.lock);
 	disk_sector_t sector_index;
 	for (sector_index = 0; sector_index < PGSIZE/DISK_SECTOR_SIZE; sector_index ++) {
 		disk_read(swap_disk, anon_page->sector_start + sector_index, page->frame->kva + sector_index*DISK_SECTOR_SIZE);
 	}
-	lock_release(&st.lock);
+	clear_swap_slot(anon_page->sector_start);
+	// lock_release(&st.lock);
 	if (!pml4_set_page(thread_current()->pml4, page->va, page->frame->kva, page->writable))
 		return false;
-	
+
 	return true;
 }
 
@@ -78,14 +78,14 @@ static bool
 anon_swap_out (struct page *page) {
 	struct anon_page *anon_page = &page->anon;
 	if (page->frame != NULL) {
-		lock_acquire(&st.lock);
+		// lock_acquire(&st.lock);
 		anon_page->sector_start = get_swap_slot();
 		disk_sector_t sector_index;
 		for (sector_index = 0; sector_index < PGSIZE/DISK_SECTOR_SIZE; sector_index ++) {
 			disk_write(swap_disk, anon_page->sector_start + sector_index, page->frame->kva + sector_index*DISK_SECTOR_SIZE);
 		}
-		memset(page->frame->kva, 0, PGSIZE);
-		lock_release(&st.lock);
+		// memset(page->frame->kva, 0, PGSIZE);
+		// lock_release(&st.lock);
 		page->frame = NULL;
 		pml4_clear_page(thread_current()->pml4, page->va);
 	} else {

@@ -50,6 +50,7 @@ struct page {
 	struct hash_elem elem;
 	bool writable;
 	struct list_elem mapped_elem;
+	struct list_elem shared_elem;
 	/* Per-type data are binded into the union.
 	 * Each function automatically detects the current union */
 	union {

@@ -39,11 +39,11 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
-		
+	
 	struct file *file = file_page->file;
 	size_t offset = file_page->offset;
- 	size_t read_bytes = file_page->read_bytes;
- 	size_t zero_bytes = file_page->zero_bytes;
+	size_t read_bytes = file_page->read_bytes;
+	size_t zero_bytes = file_page->zero_bytes;
 	size_t actual_read_bytes;
 	if ((actual_read_bytes = file_read_at (file, page->frame->kva, read_bytes, offset)) != (int) read_bytes) {
 		return false;
@@ -51,6 +51,8 @@ file_backed_swap_in (struct page *page, void *kva) {
 	memset (page->frame->kva + read_bytes, 0, zero_bytes);
 	if (!pml4_set_page(thread_current()->pml4, page->va, page->frame->kva, page->writable))
 		return false;
+
+
 	// pml4_set_dirty(thread_current()->pml4, page->va, false);
 	// insert_frame_table(page);
 	

@@ -421,7 +421,6 @@ void page_copy(struct hash_elem *e, void *aux UNUSED) {
 	int type = VM_TYPE(page->operations->type);
 
 	if (type == VM_UNINIT) {
-		// void *aux = (struct file_page *)malloc(sizeof(struct file_page));
 		if (page->uninit.aux) {
 			struct file_page *file_page;
 			file_page = (struct file_page *)malloc(sizeof(struct file_page));
@@ -431,9 +430,6 @@ void page_copy(struct hash_elem *e, void *aux UNUSED) {
 			vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, NULL);
 		}
 	} else if (type == VM_ANON) { 
-		//이 부분은 생각을 해봤는데 이미 anon타입인거보면 이미 타입이 한번 바뀌었음 
-		//그래서 init을 더 해줄 필요가 없으니까 뒤에 init 타입이랑 file정보를 빼주는듯
-		//근데 궁금한건 형 알고쓴거아님???
 		vm_alloc_page(page->operations->type, page->va, page->writable);
 		if (page->frame != NULL) {
 			vm_claim_page(page->va);
