@@ -697,7 +697,9 @@ lazy_load_segment (struct page *page, void *aux) {
 	if ((actual_read_bytes = file_read (file, page->va, read_bytes)) != (int) read_bytes) {
 		return false;
 	}
+	
 	memset (page->va + read_bytes, 0, zero_bytes);
+	pml4_set_dirty(thread_current()->pml4, page->va, false);
 	free(file_page);
 	return true;
 }
@@ -956,6 +958,25 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 	struct file *file = thread_current()->fdt[fd];
 	if (fd < 2)
 		return NULL;
+
+	if (!addr || addr != pg_round_down(addr))
+        return NULL;
+
+    if (offset != pg_round_down(offset))
+        return NULL;
+
+    if (!is_user_vaddr(addr) || !is_user_vaddr(addr + length))
+        return NULL;
+
+    if (spt_find_page(&thread_current()->spt, addr))
+        return NULL;
+
+    if (file == NULL)
+        return NULL;
+
+    if (file_length(file) == 0 || (int)length <= 0)
+        return NULL;
+
 	return do_mmap(addr, length, writable, file, offset);
 }
 

@@ -3,6 +3,7 @@
 #include "vm/vm.h"
 #include "threads/vaddr.h"
 #include "userprog/process.h"
+#include "threads/mmu.h"
 
 static bool file_backed_swap_in (struct page *page, void *kva);
 static bool file_backed_swap_out (struct page *page);
@@ -26,8 +27,13 @@ bool
 file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
 	page->operations = &file_ops;
-
+	struct file_page *aux = page->uninit.aux;
 	struct file_page *file_page = &page->file;
+	file_page->file = aux->file;
+	file_page->offset = aux->offset;
+	file_page->read_bytes = aux->read_bytes;
+	file_page->zero_bytes = aux->zero_bytes;
+
 }
 
 /* Swap in the page by read contents from the file. */
@@ -46,6 +52,21 @@ file_backed_swap_out (struct page *page) {
 static void
 file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+
+	if(page->frame != NULL){
+
+	if(pml4_is_dirty (thread_current()->pml4, page->va)){
+            file_write_at (file_page->file, page->frame->kva, file_page->read_bytes,
+            file_page->offset);
+			pml4_set_dirty(thread_current()->pml4, page->va, false);
+    }
+
+	palloc_free_page(page->frame->kva);
+	free(page->frame);
+	}
+
+	pml4_clear_page(thread_current()->pml4, page->va);
+	free(file_page->file);
 }
 
 /* Do the mmap */
@@ -54,6 +75,10 @@ do_mmap (void *addr, size_t length, int writable,
 		struct file *file, off_t offset) {
 	if (!file || !addr || pg_ofs(addr) || offset % PGSIZE || !length)
 		return NULL;
+
+	// if (!is_user_vaddr(addr) || !is_user_vaddr(addr + length)) {
+    //     return NULL;  // addr이나 addr + length가 커널 공간에 속할 경우 매핑 실패
+    // }
 
 	char a;
 	if (!file_read_at(file, &a, 1, 0))
@@ -85,7 +110,7 @@ do_mmap (void *addr, size_t length, int writable,
 		
 		offset += PGSIZE;
 		upage += PGSIZE;
-		length -= PGSIZE;
+		length -= length<PGSIZE ? length : PGSIZE;
 	}
 	palloc_free_page(buffer);
 
@@ -107,14 +132,18 @@ void do_munmap(void *addr) {
             break;
         }
 
-        // 페이지의 물리 프레임 해제
-        if (page->frame) {
-            // 물리 메모리 해제
-            palloc_free_page(page->frame->kva);
-            
-        }
+    //     // 더티 비트 확인
+    // bool is_dirty = pml4_is_dirty(cur->pml4, page->va);
+
+    // // 더티 비트를 디버그 로그에 출력
+    // if (is_dirty) {
+    //     printf("Page at address %p is dirty.\n", page->va);
+    // } else {
+    //     printf("Page at address %p is not dirty.\n", page->va);
+    // }
 
 		// SPT에서 페이지 정보 제거
+			hash_delete (&thread_current()->spt.hash_table, &page->elem);
             spt_remove_page(&cur->spt, page);
 		
         // 다음 페이지로 이동
