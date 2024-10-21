@@ -133,6 +133,8 @@ do_mmap (void *addr, size_t length, int writable,
 		}
 		
 		struct page *page = spt_find_page(&thread_current()->spt, upage);
+		if (!shared_list_init(page))
+			return NULL;
 		list_push_back(mapped_list, &page->mapped_elem);
 
 		offset += PGSIZE;

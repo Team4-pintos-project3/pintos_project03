@@ -429,6 +429,9 @@ void page_copy(struct hash_elem *e, void *aux UNUSED) {
 		} else {
 			vm_alloc_page_with_initializer(page->uninit.type, page->va, page->writable, page->uninit.init, NULL);
 		}
+		struct page *page_child = spt_find_page(&thread_current()->spt, page->va);
+		struct list *shared_list = get_list(&page->shared_elem);
+		list_push_back(shared_list, &page_child->shared_elem);
 	} else if (type == VM_ANON) { 
 		vm_alloc_page(page->operations->type, page->va, page->writable);
 		if (page->frame != NULL) {

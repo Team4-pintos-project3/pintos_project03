@@ -178,8 +178,14 @@ static void
 vm_stack_growth (void *addr UNUSED) {
 	uintptr_t align = pg_round_down(addr);
 	for (; align < USER_STACK - PGSIZE; align += PGSIZE) {
-		if (!spt_find_page(&thread_current()->spt, align))
-			vm_alloc_page(VM_ANON, align, true);
+		if (!spt_find_page(&thread_current()->spt, align)) {
+			if (!vm_alloc_page(VM_ANON, align, true))
+				exit(-1);
+			/* list of sharing physical memory */
+			struct page *page = spt_find_page(&thread_current()->spt, addr);
+			if (!shared_list_init(page))
+				exit(-1);
+		}
 	}
 }
 
@@ -253,7 +259,7 @@ vm_do_claim_page (struct page *page) {
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	if (!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable))
 		return false;
-		
+
 	memset(page->frame->kva, 0, PGSIZE);
 
 	return swap_in (page, frame->kva);
@@ -279,4 +285,15 @@ supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
 	hash_destroy(&spt->hash_table, page_destroy);
+}
+
+/* list of sharing physical memory */
+bool
+shared_list_init (struct page *page) {
+	struct list *shared_list = (struct list *)calloc(1, sizeof(struct list));
+	list_init(shared_list);
+	if (!shared_list || !page)
+		return false;
+	list_push_back(shared_list, &page->shared_elem);
+	return true;
 }

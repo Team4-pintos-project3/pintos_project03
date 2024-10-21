@@ -743,6 +743,11 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 					writable, lazy_load_segment, aux))
 			return false;
 		
+		/* list of sharing physical memory */
+		struct page *page = spt_find_page(&thread_current()->spt, upage);
+		if (!shared_list_init(page))
+			return false;
+
 		ofs += PGSIZE;
 
 		/* Advance. */
@@ -764,11 +769,17 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
 	if (vm_alloc_page(VM_ANON, stack_bottom, true)) {
+		/* list of sharing physical memory */
+		struct page *page = spt_find_page(&thread_current()->spt, stack_bottom);
+		if (!shared_list_init(page))
+			return false;
+		
 		if (vm_claim_page(stack_bottom)) {
 			if_->rsp = USER_STACK;
 			success = true;
 		}
 	}
+
 	return success;
 }
 #endif /* VM */

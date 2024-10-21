@@ -487,3 +487,12 @@ list_min (struct list *list, list_less_func *less, void *aux) {
 	}
 	return min;
 }
+
+struct list *
+get_list (struct list_elem *elem) {
+	struct list_elem *e = elem;
+	while (!is_head(e)) {
+		e = list_prev(e);
+	}
+	return list_entry(e, struct list, head);
+}
